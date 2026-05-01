@@ -6,20 +6,33 @@ from ai.chatbot import ask_ai
 
 st.title("Finance AI Assistant")
 
-item = st.text_input("Expense Name")
-amount = st.number_input("Amount")
+# --- Expense Entry Section ---
+st.subheader("Add an Expense")
+item = st.text_input("Expense Name", key="expense_name")
+amount = st.number_input("Amount", key="expense_amount")
 
 if st.button("Add Expense"):
     category = categorize(item)
     save_expense(item, amount, category)
     st.success(f"Saved {item} as {category}")
 
+# --- Summary Section ---
 st.subheader("Total Spending")
-st.write(total_spending())
+st.write(f"${total_spending():,.2f}")
 
+# --- Clear Expenses Section ---
+if st.button("Clear Expenses"):
+    open("expenses.csv", "w").close()
+    st.success("Expenses cleared.")
+    st.rerun()
+
+# --- AI Chat Section ---
 st.subheader("Ask Your Financial Assistant")
-question = st.text_input("Your question")
+question = st.text_input("Your question", key="ai_question")
 
 if st.button("Ask"):
-    answer = ask_ai(question)
-    st.write(answer)
+    if question:
+        answer = ask_ai(question)
+        st.write(answer)
+    else:
+        st.warning("Please type a question first.")
