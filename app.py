@@ -28,11 +28,27 @@ if st.button("Clear Expenses"):
 
 # --- AI Chat Section ---
 st.subheader("Ask Your Financial Assistant")
+
+# Initialize history if this is the first run
+if "conversation_history" not in st.session_state:
+    st.session_state.conversation_history = []
+
+# Display past conversation
+for message in st.session_state.conversation_history:
+    if message["role"] == "user":
+        st.write(f"**You:** {message['content']}")
+    else:
+        st.write(f"**Assistant:** {message['content']}")
+
 question = st.text_input("Your question", key="ai_question")
 
 if st.button("Ask"):
     if question:
-        answer = ask_ai(question)
-        st.write(answer)
+        answer, updated_history = ask_ai(
+            question, 
+            st.session_state.conversation_history
+        )
+        st.session_state.conversation_history = updated_history
+        st.rerun()
     else:
         st.warning("Please type a question first.")
