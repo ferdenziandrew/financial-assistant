@@ -17,9 +17,8 @@ while True:
     if again.lower() == "n":
         break
 
-from analysis.reports import show_category_chart
-
-show_category_chart()
+#from analysis.reports import show_category_chart
+#show_category_chart()
 
 from ai.chatbot import ask_ai
 
