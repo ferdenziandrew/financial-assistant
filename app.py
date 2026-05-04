@@ -1,5 +1,5 @@
 import streamlit as st
-from utils.storage import save_expense
+from utils.storage import save_expense, get_connection
 from utils.categorizer import categorize
 from analysis.reports import total_spending
 from ai.chatbot import ask_ai
@@ -22,7 +22,9 @@ st.write(f"${total_spending():,.2f}")
 
 # --- Clear Expenses Section ---
 if st.button("Clear Expenses"):
-    open("expenses.csv", "w").close()
+    with get_connection() as conn:
+        conn.execute("DELETE FROM expenses")
+    st.session_state.conversation_history = []
     st.success("Expenses cleared.")
     st.rerun()
 

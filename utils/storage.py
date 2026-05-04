@@ -1,36 +1,28 @@
-import csv
-import os
+import sqlite3
+from pathlib import Path
+from datetime import date
 
-FILE_NAME = "expenses.csv"
+DB_PATH = Path(__file__).parent.parent / "expenses.db"
 
+def get_connection():
+    return sqlite3.connect(DB_PATH)
 
-def _file_has_header():
-    if not os.path.isfile(FILE_NAME):
-        return False
-
-    with open(FILE_NAME, newline="", encoding="utf-8") as file:
-        first_line = file.readline().strip()
-
-    return first_line == "Item,Amount,Category"
-
+def initialize_db():
+    with get_connection() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS expenses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                item TEXT NOT NULL,
+                amount REAL NOT NULL,
+                category TEXT NOT NULL,
+                date TEXT NOT NULL
+            )
+        """)
 
 def save_expense(item, amount, category):
-    file_exists = os.path.isfile(FILE_NAME)
-
-    if file_exists and not _file_has_header():
-        with open(FILE_NAME, newline="", encoding="utf-8") as file:
-            existing_rows = list(csv.reader(file))
-
-        with open(FILE_NAME, mode="w", newline="", encoding="utf-8") as file:
-            writer = csv.writer(file)
-            writer.writerow(["Item", "Amount", "Category"])
-            writer.writerows(existing_rows)
-
-    if not file_exists:
-        with open(FILE_NAME, mode="w", newline="", encoding="utf-8") as file:
-            writer = csv.writer(file)
-            writer.writerow(["Item", "Amount", "Category"])
-
-    with open(FILE_NAME, mode="a", newline="", encoding="utf-8") as file:
-        writer = csv.writer(file)
-        writer.writerow([item, amount, category])
+    initialize_db()
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT INTO expenses (item, amount, category, date) VALUES (?, ?, ?, ?)",
+            (item, amount, category, str(date.today()))
+        )

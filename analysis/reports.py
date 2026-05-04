@@ -1,30 +1,20 @@
 import pandas as pd
-from pathlib import Path
-
-EXPENSES_FILE = Path("expenses.csv")
-
+from utils.storage import get_connection, initialize_db
 
 def load_data():
-    if not EXPENSES_FILE.exists():
-        return pd.DataFrame(columns=["Item", "Amount", "Category"])
-
-    try:
-        df = pd.read_csv(EXPENSES_FILE)
-    except pd.errors.EmptyDataError:
-        return pd.DataFrame(columns=["Item", "Amount", "Category"])
-
-    if {"Item", "Amount", "Category"}.issubset(df.columns):
-        return df
-
-    return pd.read_csv(EXPENSES_FILE, header=None, names=["Item", "Amount", "Category"])
-
+    initialize_db()
+    with get_connection() as conn:
+        return pd.read_sql("SELECT * FROM expenses", conn)
 
 def total_spending():
     df = load_data()
-    return pd.to_numeric(df["Amount"], errors="coerce").fillna(0).sum()
-
+    if df.empty:
+        return 0
+    return pd.to_numeric(df["amount"], errors="coerce").fillna(0).sum()
 
 def top_categories():
     df = load_data()
-    df["Amount"] = pd.to_numeric(df["Amount"], errors="coerce").fillna(0)
-    return df.groupby("Category")["Amount"].sum().sort_values(ascending=False)
+    if df.empty:
+        return pd.Series()
+    df["amount"] = pd.to_numeric(df["amount"], errors="coerce").fillna(0)
+    return df.groupby("category")["amount"].sum().sort_values(ascending=False)
