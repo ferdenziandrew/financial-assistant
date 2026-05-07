@@ -48,3 +48,65 @@ def categorize(item):
     # .strip() removes any accidental whitespace or newline characters
     # from the response before returning it
     return response.content[0].text.strip()
+
+def categorize_batch(items):
+    """
+    Categorizes a list of expense descriptions in a single API call.
+    Significantly faster than calling categorize() once per item.
+    Used by the CSV importer to process all transactions at once.
+
+    Parameters:
+        items (list): List of expense description strings
+
+    Returns:
+        list: Category labels in the same order as the input list.
+              Falls back to 'Other' for any item that can't be categorized.
+
+    Example:
+        Input:  ["Netflix", "Uber", "Chipotle"]
+        Output: ["Entertainment", "Transport", "Food"]
+    """
+    # Number each item so the AI returns them in a predictable, parseable format
+    numbered = "\n".join([f"{i+1}. {item}" for i, item in enumerate(items)])
+
+    response = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        # More tokens needed now — one word per transaction
+        max_tokens=1000,
+        # Prompt engineering — very specific instructions so the output
+        # is predictable and easy to parse back into a list
+        system="""You are an expense categorizer.
+        You will receive a numbered list of expense descriptions.
+        Respond with ONLY a numbered list of categories in the exact same order.
+        Use only these categories: Food, Groceries, Transport, Entertainment, Shopping, Health, Utilities, Income, Transfer, Other.
+        Format exactly like:
+        1. Food
+        2. Transport
+        3. Entertainment
+        No extra text, no explanations.""",
+        messages=[
+            {"role": "user", "content": numbered}
+        ]
+    )
+
+    # Parse the numbered response back into a plain list
+    # Each line looks like "1. Food" — we split on ". " and take the second part
+    raw = response.content[0].text.strip()
+    lines = raw.strip().split("\n")
+
+    categories = []
+    for line in lines:
+        try:
+            # "1. Food" → ["1", "Food"] → "Food"
+            category = line.split(". ", 1)[1].strip()
+            categories.append(category)
+        except IndexError:
+            # If a line doesn't parse cleanly, default to Other
+            categories.append("Other")
+
+    # Safety net — if AI returned fewer categories than items,
+    # pad the remainder with Other rather than crashing
+    while len(categories) < len(items):
+        categories.append("Other")
+
+    return categories

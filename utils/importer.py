@@ -4,7 +4,7 @@
 
 import pandas as pd
 from utils.storage import save_expense
-from utils.categorizer import categorize
+from utils.categorizer import categorize, categorize_batch
 
 def clean_amount(amount_str):
     """
@@ -68,6 +68,8 @@ def import_pnc_csv(filepath):
     """
     Reads a PNC bank statement CSV, processes each transaction,
     and saves it to the SQLite database.
+    Uses batch categorization — all transactions categorized in one AI call
+    instead of one call per transaction, reducing import time significantly.
 
     Parameters:
         filepath (str): Path to the uploaded PNC CSV file
@@ -79,33 +81,34 @@ def import_pnc_csv(filepath):
     """
     df = pd.read_csv(filepath)
 
-    imported = 0
+    # --- Phase 1: Clean all rows first ---
+    # Build a list of cleaned transactions before touching the AI or database.
+    # This way if cleaning fails on a row we skip it before wasting an AI call.
+    cleaned_rows = []
     skipped = 0
 
     for _, row in df.iterrows():
         try:
-            # Clean amount — skip rows where amount can't be parsed
             amount = clean_amount(row["Amount"])
-
-            # Clean description for AI categorization
             description = clean_description(str(row["Transaction Description"]))
-
-            # Use our AI categorizer — sends cleaned description to Claude
-            category = categorize(description)
-
-            # Use PNC's date directly — already in a readable format
             date = str(row["Transaction Date"]).strip()
-
-            # Save to database using existing save_expense function
-            # Note: save_expense normally uses today's date — we'll update
-            # it below to accept a custom date from the bank statement
-            save_expense(description, amount, category, date=date)
-
-            imported += 1
-
+            cleaned_rows.append((description, amount, date))
         except Exception as e:
-            # If a single row fails, log it and keep going
-            print(f"Skipped row: {row.get('Transaction Description', 'unknown')} — {e}")
+            print(f"Skipped row during cleaning: {row.get('Transaction Description', 'unknown')} — {e}")
+            skipped += 1
+
+    # --- Phase 2: Batch categorize all cleaned descriptions in one AI call ---
+    descriptions = [row[0] for row in cleaned_rows]
+    categories = categorize_batch(descriptions)
+
+    # --- Phase 3: Save everything to the database ---
+    imported = 0
+    for (description, amount, date), category in zip(cleaned_rows, categories):
+        try:
+            save_expense(description, amount, category, date=date)
+            imported += 1
+        except Exception as e:
+            print(f"Skipped row during save: {description} — {e}")
             skipped += 1
 
     return imported, skipped
