@@ -8,9 +8,10 @@
 import streamlit as st
 from utils.storage import save_expense, get_connection
 from utils.categorizer import categorize
-from analysis.reports import total_spending, get_expenses
-from ai.chatbot import ask_ai
 from utils.importer import import_pnc_csv
+from ai.chatbot import ask_ai
+from analysis.reports import total_spending, get_expenses
+from analysis.charts import category_bar_chart, spending_trend_chart, income_vs_expenses_chart
 import tempfile
 import os
 import time
@@ -35,11 +36,37 @@ if st.button("Add Expense"):
     # f-string formats the success message with the actual values
     st.success(f"Saved {item} as {category}")
 
-# --- Summary Section ---
+# --- Summary / Total Spending Section ---
 # Reads total from database and formats as currency
 # :,.2f means: use commas for thousands, show exactly 2 decimal places
 st.subheader("Total Spending")
 st.write(f"${total_spending():,.2f}")
+
+# --- Charts Section ---
+st.subheader("Spending Overview")
+
+expenses_data = get_expenses()
+
+if not expenses_data.empty:
+    # Row 1 — Category chart full width
+    cat_chart = category_bar_chart()
+    if cat_chart:
+        st.plotly_chart(cat_chart, use_container_width=True)
+
+    # Row 2 — Trend and Income/Expenses side by side
+    col1, col2 = st.columns(2)
+
+    with col1:
+        trend_chart = spending_trend_chart()
+        if trend_chart:
+            st.plotly_chart(trend_chart, use_container_width=True)
+
+    with col2:
+        inc_exp_chart = income_vs_expenses_chart()
+        if inc_exp_chart:
+            st.plotly_chart(inc_exp_chart, use_container_width=True)
+else:
+    st.info("Import transactions to see spending charts.")
 
 # --- Expense Table Section ---
 st.subheader("Transaction History")

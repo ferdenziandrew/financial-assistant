@@ -5,3 +5,4 @@ expenses.csv
 expenses.db
 **/__pycache__/
 *.pyc
+PROJECT_CONTEXT.md

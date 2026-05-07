@@ -106,3 +106,76 @@ def get_expenses(category=None, start_date=None, end_date=None):
 
     # Sort most recent first and reset index so row numbers are clean
     return df.sort_values("date", ascending=False).reset_index(drop=True)
+
+def spending_by_category():
+    """
+    Returns total spending per category, excluding income and transfers.
+    Used for the category bar chart.
+
+    Returns:
+        pd.DataFrame: Columns — category, amount (positive values, sorted highest first)
+    """
+    df = load_data()
+    if df.empty:
+        return pd.DataFrame(columns=["category", "amount"])
+
+    # Only include debits (negative amounts)
+    df = df[pd.to_numeric(df["amount"], errors="coerce") < 0]
+
+    # Exclude transfers and income from spending analysis
+    df = df[~df["category"].isin(["Transfer", "Income", "Transfers"])]
+
+    df["amount"] = pd.to_numeric(df["amount"], errors="coerce").abs()
+
+    return df.groupby("category")["amount"].sum().reset_index().sort_values(
+    "amount", ascending=False).round(2)
+
+
+def spending_over_time():
+    """
+    Returns daily total spending over time, excluding income and transfers.
+    Used for the spending trend line chart.
+
+    Returns:
+        pd.DataFrame: Columns — date, amount (daily totals, sorted chronologically)
+    """
+    df = load_data()
+    if df.empty:
+        return pd.DataFrame(columns=["date", "amount"])
+
+    # Only include debits
+    df = df[pd.to_numeric(df["amount"], errors="coerce") < 0]
+    df["amount"] = pd.to_numeric(df["amount"], errors="coerce").abs()
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+
+    return df.groupby("date")["amount"].sum().reset_index().sort_values("date")
+
+
+def income_vs_expenses_by_month():
+    """
+    Returns monthly totals split into income (positive) and expenses (negative).
+    Used for the income vs expenses bar chart.
+
+    Returns:
+        pd.DataFrame: Columns — month, income, expenses
+    """
+    df = load_data()
+    if df.empty:
+        return pd.DataFrame(columns=["month", "income", "expenses"])
+
+    df["amount"] = pd.to_numeric(df["amount"], errors="coerce")
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+
+    # Create a month column formatted as "YYYY-MM" for grouping
+    df["month"] = df["date"].dt.strftime("%Y-%m")
+
+    # Split into income and expenses
+    income = df[df["amount"] > 0].groupby("month")["amount"].sum().reset_index()
+    income.columns = ["month", "income"]
+
+    expenses = df[df["amount"] < 0].groupby("month")["amount"].sum().abs().reset_index()
+    expenses.columns = ["month", "expenses"]
+
+    # Merge both into one DataFrame — outer join keeps months that only have one side
+    merged = pd.merge(income, expenses, on="month", how="outer").fillna(0)
+    return merged.sort_values("month")
