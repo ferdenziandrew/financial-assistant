@@ -3,7 +3,7 @@
 # using AI, and saves each one to the expenses table.
 
 import pandas as pd
-from utils.storage import save_expense
+from utils.storage import save_expense, expense_exists
 from utils.categorizer import categorize, categorize_batch
 
 def clean_amount(amount_str):
@@ -103,12 +103,17 @@ def import_pnc_csv(filepath):
 
     # --- Phase 3: Save everything to the database ---
     imported = 0
+    duplicates = 0
     for (description, amount, date), category in zip(cleaned_rows, categories):
         try:
+            # Check if this transaction already exists before saving
+            if expense_exists(description, amount, date):
+                duplicates += 1
+                continue  # skip to next transaction
             save_expense(description, amount, category, date=date)
             imported += 1
         except Exception as e:
             print(f"Skipped row during save: {description} — {e}")
             skipped += 1
 
-    return imported, skipped
+    return imported, skipped, duplicates

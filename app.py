@@ -13,6 +13,7 @@ from ai.chatbot import ask_ai
 from utils.importer import import_pnc_csv
 import tempfile
 import os
+import time
 
 
 st.title("Finance AI Assistant")
@@ -68,12 +69,13 @@ if uploaded_file is not None:
             tmp_path = tmp.name
 
         with st.spinner("Importing and categorizing transactions..."):
-            imported, skipped = import_pnc_csv(tmp_path)
+            imported, skipped, duplicates = import_pnc_csv(tmp_path)
 
         # Clean up the temporary file
         os.remove(tmp_path)
 
-        st.success(f"Imported {imported} transactions. Skipped {skipped}.")
+        st.success(f"Imported {imported} transactions. Duplicates skipped: {duplicates}. Errors: {skipped}.")
+        time.sleep(3)  # wait 3 seconds so the message is readable
         st.rerun()
 
 # --- AI Chat Section ---

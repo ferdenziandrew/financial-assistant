@@ -67,3 +67,33 @@ def save_expense(item, amount, category, date=None):
             "INSERT INTO expenses (item, amount, category, date) VALUES (?, ?, ?, ?)",
             (item, amount, category, expense_date)
         )
+
+def expense_exists(item, amount, date):
+    """
+    Checks if a transaction already exists in the database
+    to prevent duplicate imports.
+
+    Parameters:
+        item   (str)  : Expense description
+        amount (float): Dollar amount
+        date   (str)  : Date string
+
+    Returns:
+        bool: True if a matching transaction exists, False otherwise
+
+    Note:
+        Uses item + amount + date as a unique fingerprint.
+        Two identical charges on the same day are extremely unlikely
+        to be legitimate duplicates in real bank data.
+    """
+    initialize_db()
+    with get_connection() as conn:
+        cursor = conn.execute(
+            # COUNT(*) returns how many rows match these exact values
+            "SELECT COUNT(*) FROM expenses WHERE item = ? AND amount = ? AND date = ?",
+            (item, amount, date)
+        )
+        # fetchone() gets the first (and only) result row
+        # [0] gets the count value from that row
+        count = cursor.fetchone()[0]
+        return count > 0
