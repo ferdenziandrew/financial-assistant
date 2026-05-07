@@ -8,7 +8,7 @@
 import streamlit as st
 from utils.storage import save_expense, get_connection
 from utils.categorizer import categorize
-from analysis.reports import total_spending
+from analysis.reports import total_spending, get_expenses
 from ai.chatbot import ask_ai
 from utils.importer import import_pnc_csv
 import tempfile
@@ -40,6 +40,48 @@ if st.button("Add Expense"):
 # :,.2f means: use commas for thousands, show exactly 2 decimal places
 st.subheader("Total Spending")
 st.write(f"${total_spending():,.2f}")
+
+# --- Expense Table Section ---
+st.subheader("Transaction History")
+
+# Load all unique categories for the filter dropdown
+all_expenses = get_expenses()
+
+if not all_expenses.empty:
+    # --- Filters ---
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        # Build category dropdown from actual categories in the data
+        categories = ["All"] + sorted(all_expenses["category"].unique().tolist())
+        selected_category = st.selectbox("Filter by Category", categories)
+
+    with col2:
+        start_date = st.date_input("From", value=None, key="start_date")
+
+    with col3:
+        end_date = st.date_input("To", value=None, key="end_date")
+
+    # Fetch filtered data
+    filtered_df = get_expenses(
+        category=selected_category,
+        start_date=str(start_date) if start_date else None,
+        end_date=str(end_date) if end_date else None
+    )
+
+    # Format amount column as currency for display
+    display_df = filtered_df.copy()
+    display_df["amount"] = display_df["amount"].apply(
+    lambda x: f"-${abs(x):,.2f}" if x < 0 else f"${x:,.2f}")
+
+    # Drop the id column — internal database detail, not useful to display
+    display_df = display_df.drop(columns=["id"])
+
+    st.dataframe(display_df, use_container_width=True)
+    st.caption(f"Showing {len(filtered_df)} transactions")
+
+else:
+    st.info("No transactions yet. Add an expense or import a bank statement.")
 
 # --- Clear Expenses Section ---
 # Wipes all rows from the database and resets conversation history.

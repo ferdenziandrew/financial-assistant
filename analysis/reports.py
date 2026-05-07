@@ -72,3 +72,37 @@ def top_categories():
     # ["amount"].sum()     — add up the amounts within each group
     # .sort_values()       — sort highest spending category first
     return df.groupby("category")["amount"].sum().sort_values(ascending=False)
+
+def get_expenses(category=None, start_date=None, end_date=None):
+    """
+    Returns expenses from the database with optional filtering.
+
+    Parameters:
+        category   (str) : Filter by category. None returns all categories.
+        start_date (str) : Filter from this date onwards (YYYY-MM-DD or M/D/YYYY)
+        end_date   (str) : Filter up to this date. None returns all dates.
+
+    Returns:
+        pd.DataFrame: Filtered expense rows sorted by date descending
+                      (most recent first)
+    """
+    df = load_data()
+
+    if df.empty:
+        return df
+
+    # Apply category filter if provided
+    if category and category != "All":
+        df = df[df["category"] == category]
+
+    # Convert date column to datetime for correct chronological sorting and filtering
+    df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.strftime("%m/%d/%Y")
+
+    # Apply date filters if provided
+    if start_date:
+        df = df[df["date"] >= pd.to_datetime(start_date)]
+    if end_date:
+        df = df[df["date"] <= pd.to_datetime(end_date)]
+
+    # Sort most recent first and reset index so row numbers are clean
+    return df.sort_values("date", ascending=False).reset_index(drop=True)
