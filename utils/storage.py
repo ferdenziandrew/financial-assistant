@@ -47,24 +47,23 @@ def initialize_db():
             )
         """)
 
-def save_expense(item, amount, category):
+def save_expense(item, amount, category, date=None):
     """
     Saves a single expense entry to the database.
 
     Parameters:
-        item     (str)  : Name of the expense (e.g. 'Chipotle')
-        amount   (float): Dollar amount spent
-        category (str)  : Category assigned by the AI categorizer
-
-    Note:
-        Uses ? placeholders instead of f-strings for security.
-        This is called a parameterized query and prevents SQL injection —
-        a common attack where malicious input manipulates database queries.
-        date.today() automatically records when the expense was added.
+        item     (str)  : Name of the expense
+        amount   (float): Dollar amount (negative for debits, positive for credits)
+        category (str)  : Category label from AI categorizer
+        date     (str)  : Optional date string. Uses today if not provided.
     """
+    # Use provided date or fall back to today
+    from datetime import date as date_module
+    expense_date = date if date else str(date_module.today())
+
     initialize_db()
     with get_connection() as conn:
         conn.execute(
             "INSERT INTO expenses (item, amount, category, date) VALUES (?, ?, ?, ?)",
-            (item, amount, category, str(date.today()))
+            (item, amount, category, expense_date)
         )

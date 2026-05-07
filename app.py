@@ -10,6 +10,10 @@ from utils.storage import save_expense, get_connection
 from utils.categorizer import categorize
 from analysis.reports import total_spending
 from ai.chatbot import ask_ai
+from utils.importer import import_pnc_csv
+import tempfile
+import os
+
 
 st.title("Finance AI Assistant")
 
@@ -50,6 +54,27 @@ if st.button("Clear Expenses"):
     # st.rerun() forces Streamlit to rerun the page immediately so
     # the total updates to $0.00 without a manual refresh
     st.rerun()
+
+# --- Import PNC Statement Section ---
+st.subheader("Import PNC Bank Statement")
+uploaded_file = st.file_uploader("Upload CSV export from PNC", type="csv")
+
+if uploaded_file is not None:
+    if st.button("Import Transactions"):
+        # Streamlit gives us the file in memory — save it temporarily to disk
+        # so pandas can read it as a normal file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as tmp:
+            tmp.write(uploaded_file.getvalue())
+            tmp_path = tmp.name
+
+        with st.spinner("Importing and categorizing transactions..."):
+            imported, skipped = import_pnc_csv(tmp_path)
+
+        # Clean up the temporary file
+        os.remove(tmp_path)
+
+        st.success(f"Imported {imported} transactions. Skipped {skipped}.")
+        st.rerun()
 
 # --- AI Chat Section ---
 st.subheader("Ask Your Financial Assistant")
