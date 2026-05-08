@@ -6,3 +6,4 @@ expenses.db
 **/__pycache__/
 *.pyc
 PROJECT_CONTEXT.md
+plaid_token.txt

@@ -12,6 +12,8 @@ from utils.importer import import_pnc_csv
 from ai.chatbot import ask_ai
 from analysis.reports import total_spending, get_expenses
 from analysis.charts import category_bar_chart, spending_trend_chart, income_vs_expenses_chart
+from plaid_link.transactions import import_plaid_transactions
+from pathlib import Path
 import tempfile
 import os
 import time
@@ -144,6 +146,27 @@ if uploaded_file is not None:
         os.remove(tmp_path)
 
         st.success(f"Imported {imported} transactions. Duplicates skipped: {duplicates}. Errors: {skipped}.")
+        time.sleep(3)  # wait 3 seconds so the message is readable
+        st.rerun()
+
+# --- Plaid Sync Section ---
+st.subheader("Sync Bank Transactions (Plaid)")
+
+token_exists = Path("plaid_token.txt").exists()
+
+if not token_exists:
+    st.info("No bank account connected yet.")
+    if st.button("Connect Bank Account"):
+        import webbrowser
+        webbrowser.open("http://127.0.0.1:5000/plaid")
+        st.info("Complete the connection in the browser tab that just opened, then return here and sync.")
+else:
+    st.success("Bank account connected ✅")
+    days = st.slider("Days of history to sync", min_value=7, max_value=90, value=30)
+    if st.button("Sync Transactions"):
+        with st.spinner("Fetching and categorizing transactions..."):
+            imported, skipped, duplicates = import_plaid_transactions(days_back=days)
+        st.success(f"Synced — Imported: {imported} | Duplicates skipped: {duplicates} | Errors: {skipped}")
         time.sleep(3)  # wait 3 seconds so the message is readable
         st.rerun()
 
