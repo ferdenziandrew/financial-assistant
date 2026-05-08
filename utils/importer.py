@@ -5,6 +5,7 @@
 import pandas as pd
 from utils.storage import save_expense, expense_exists
 from utils.categorizer import categorize, categorize_batch
+from collections import defaultdict
 
 def clean_amount(amount_str):
     """
@@ -104,16 +105,24 @@ def import_pnc_csv(filepath):
     # --- Phase 3: Save everything to the database ---
     imported = 0
     duplicates = 0
+
+    # Track how many times we've seen each fingerprint in THIS import batch
+    seen_counts = defaultdict(int)
+
     for (description, amount, date), category in zip(cleaned_rows, categories):
         try:
-            # Check if this transaction already exists before saving
-            if expense_exists(description, amount, date):
+            fingerprint = (description, amount, date)
+            seen_counts[fingerprint] += 1
+
+            # Allow saving if database count is less than how many
+            # times this transaction appears in the current import batch
+            if expense_exists(description, amount, date, max_allowed=seen_counts[fingerprint]):
                 duplicates += 1
-                continue  # skip to next transaction
+                continue
             save_expense(description, amount, category, date=date)
             imported += 1
         except Exception as e:
-            print(f"Skipped row during save: {description} — {e}")
+            print(f"Skipped save: {description} — {e}")
             skipped += 1
 
     return imported, skipped, duplicates

@@ -11,6 +11,7 @@ from utils.categorizer import categorize_batch
 from dotenv import load_dotenv
 from pathlib import Path
 from datetime import date, timedelta
+from collections import defaultdict
 import os
 
 load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env")
@@ -115,9 +116,16 @@ def import_plaid_transactions(days_back=30):
     imported = 0
     duplicates = 0
 
+    seen_counts = defaultdict(int)
+
     for (description, amount, date), category in zip(cleaned, categories):
         try:
-            if expense_exists(description, amount, date):
+            fingerprint = (description, amount, date)
+            seen_counts[fingerprint] += 1
+
+            # Allow saving if database count is less than how many
+            # times this transaction appears in the current import batch
+            if expense_exists(description, amount, date, max_allowed=seen_counts[fingerprint]):
                 duplicates += 1
                 continue
             save_expense(description, amount, category, date=date)

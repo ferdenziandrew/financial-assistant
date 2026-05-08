@@ -68,32 +68,26 @@ def save_expense(item, amount, category, date=None):
             (item, amount, category, expense_date)
         )
 
-def expense_exists(item, amount, date):
+def expense_exists(item, amount, date, max_allowed=1):
     """
-    Checks if a transaction already exists in the database
-    to prevent duplicate imports.
+    Checks how many times a matching transaction already exists.
+    max_allowed lets legitimate duplicate transactions through
+    (e.g. 4 loan payments of same amount on same day).
 
     Parameters:
-        item   (str)  : Expense description
-        amount (float): Dollar amount
-        date   (str)  : Date string
+        item        (str)  : Expense description
+        amount      (float): Dollar amount
+        date        (str)  : Date string
+        max_allowed (int)  : How many copies are allowed before blocking. Default 1.
 
     Returns:
-        bool: True if a matching transaction exists, False otherwise
-
-    Note:
-        Uses item + amount + date as a unique fingerprint.
-        Two identical charges on the same day are extremely unlikely
-        to be legitimate duplicates in real bank data.
+        bool: True if count >= max_allowed (should skip), False if should save
     """
     initialize_db()
     with get_connection() as conn:
         cursor = conn.execute(
-            # COUNT(*) returns how many rows match these exact values
             "SELECT COUNT(*) FROM expenses WHERE item = ? AND amount = ? AND date = ?",
             (item, amount, date)
         )
-        # fetchone() gets the first (and only) result row
-        # [0] gets the count value from that row
         count = cursor.fetchone()[0]
-        return count > 0
+        return count >= max_allowed

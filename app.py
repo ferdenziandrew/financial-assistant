@@ -6,7 +6,7 @@
 # is used to persist data across those reruns within a session.
 
 import streamlit as st
-from utils.storage import save_expense, get_connection
+from utils.storage import save_expense, get_connection, expense_exists
 from utils.categorizer import categorize
 from utils.importer import import_pnc_csv
 from ai.chatbot import ask_ai
@@ -17,6 +17,7 @@ from pathlib import Path
 import tempfile
 import os
 import time
+from datetime import date as date_module
 
 
 st.title("Finance AI Assistant")
@@ -32,9 +33,12 @@ item = st.text_input("Expense Name", key="expense_name")
 amount = st.number_input("Amount", key="expense_amount")
 
 if st.button("Add Expense"):
-    # categorize() makes an AI call to determine the category
     category = categorize(item)
-    save_expense(item, amount, category)
+    if expense_exists(item, amount, str(date_module.today())):
+        st.warning("This expense already exists for today.")
+    else:
+        save_expense(item, amount, category)
+        st.success(f"Saved {item} as {category}")
     # f-string formats the success message with the actual values
     st.success(f"Saved {item} as {category}")
 
