@@ -6,21 +6,24 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import time
 import sqlite3
+import pytest
 
 
-def test_category_filter(driver):
+@pytest.mark.parametrize("category", ["Food", "Shopping", "Entertainment", "Transport"])
+def test_category_filter(driver, category):
     """
     Verifies that selecting a category in the Filter by Category dropdown
     updates the transaction table to show only matching records.
-    Selects 'Food' and confirms that unrelated categories like 'Shopping'
-    are no longer present in the page source after filtering.
+    Parametrized across four categories — confirms filter behavior is consistent
+    regardless of which category is selected.
 
     Parameters:
         driver (webdriver.Chrome): Browser session injected by the driver fixture.
+        category (str): Category name to filter by, injected by pytest parametrize.
 
     Returns:
-        None: Passes if filtered results exclude other categories.
-              Raises AssertionError if unrelated categories still appear after filter.
+        None: Passes if visible row count matches DB count for that category.
+              Raises AssertionError if counts don't match.
               Raises TimeoutException if filter input never appears within 10 seconds.
     """
     driver.get("http://localhost:8501")
@@ -35,7 +38,7 @@ def test_category_filter(driver):
     # Clear any existing value and type the category to filter by
     # Streamlit combobox filters options as you type
     category_filter.click()
-    category_filter.send_keys("Food")
+    category_filter.send_keys(category)
     category_filter.send_keys(Keys.RETURN)
 
     # Give Streamlit a moment to re-render the filtered table
@@ -50,8 +53,9 @@ def test_category_filter(driver):
      # Query DB for expected Food count
     conn = sqlite3.connect('expenses.db')
     expected = conn.execute(
-        "SELECT COUNT(*) FROM expenses WHERE category = 'Food'"
-    ).fetchone()[0]
+            "SELECT COUNT(*) FROM expenses WHERE category = ?",
+            (category,)
+        ).fetchone()[0]
     conn.close()
 
-    assert visible_rows == expected, f"Expected {expected} Food rows but table shows {visible_rows}"
+    assert visible_rows == expected, f"Expected {expected} {category} rows but table shows {visible_rows}"
