@@ -11,7 +11,7 @@ from selenium.webdriver.common.keys import Keys
 TEST_ITEM = "Selenium Test Coffee"
 TEST_AMOUNT = "4.50"
 
-def test_expense_entry():
+def test_expense_entry(driver):
     """
     Interaction test — verifies that submitting the Add Expense form
     saves a new transaction and displays it in the transaction history table.
@@ -19,14 +19,13 @@ def test_expense_entry():
     the item appears in the rendered dataframe.
 
     Parameters:
-        None
+        driver (webdriver.Chrome): Browser session injected by the driver fixture.
 
     Returns:
         None: Passes if the test item appears in the table after submission.
               Raises AssertionError if the item is not found.
               Raises TimeoutException if the table never renders within 10 seconds.
     """
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
 
     try:
         driver.get("http://localhost:8501")
@@ -62,5 +61,5 @@ def test_expense_entry():
         page_source = driver.page_source
         assert TEST_ITEM in page_source, f"Expected '{TEST_ITEM}' in page source but it was not found."
 
-    finally:
-        driver.quit()
+    except Exception as e:
+        raise e

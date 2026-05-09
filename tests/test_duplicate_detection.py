@@ -47,7 +47,7 @@ def submit_expense(driver, wait):
     )
 
 
-def test_duplicate_detection():
+def test_duplicate_detection(driver):
     """
     Verifies that submitting the same expense twice via the Add Expense form
     results in exactly one record in the database.
@@ -61,8 +61,6 @@ def test_duplicate_detection():
         None: Passes if exactly 1 matching record exists after two submissions.
               Raises AssertionError if count is 0 (neither saved) or 2 (duplicate allowed).
     """
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
-
     try:
         driver.get("http://localhost:8501")
         wait = WebDriverWait(driver, 10)
@@ -81,5 +79,5 @@ def test_duplicate_detection():
 
         assert count == 1, f"Expected 1 record but found {count} — duplicate detection may not be working."
 
-    finally:
-        driver.quit()
+    except Exception as e:
+        raise e
