@@ -6,8 +6,9 @@
 # is used to persist data across those reruns within a session.
 
 import streamlit as st
-from utils.storage import save_expense, get_connection, expense_exists
+from utils.storage import save_expense, get_connection, expense_exists, save_merchant_rule
 from utils.categorizer import categorize
+from utils.categorizer import CATEGORIES
 from utils.importer import import_pnc_csv
 from ai.chatbot import ask_ai
 from analysis.reports import total_spending, get_expenses
@@ -115,6 +116,63 @@ if not all_expenses.empty:
 
 else:
     st.info("No transactions yet. Add an expense or import a bank statement.")
+
+# --- Recategorize "Other" Transactions Section ---
+st.subheader("Review Uncategorized Transactions")
+
+other_df = get_expenses(category="Other")
+
+if other_df.empty:
+    st.success("No uncategorized transactions — all clean!")
+else:
+    st.caption(f"{len(other_df)} transactions categorized as 'Other'. Reassign below.")
+
+    for _, row in other_df.iterrows():
+        col1, col2, col3 = st.columns([4, 3, 1])
+
+        with col1:
+            # Show item and date so user knows what they're looking at
+            st.write(f"**{row['item']}**")
+            st.caption(f"{row['date']} | ${abs(float(row['amount'])):,.2f}")
+
+        with col2:
+            # Dropdown pre-selected to Other since that's current category
+            new_category = st.selectbox(
+                "Category",
+                CATEGORIES,
+                index=CATEGORIES.index("Other"),
+                key=f"cat_{row['id']}"
+            )
+
+        with col3:
+            st.write(" ")
+            if st.button("Save", key=f"save_{row['id']}"):
+                with get_connection() as conn:
+                    # Update this specific transaction
+                    conn.execute(
+                        "UPDATE expenses SET category = ? WHERE id = ?",
+                        (new_category, row['id'])
+                    )
+                    # Also update any other "Other" transactions whose item
+                    # contains part of this merchant name (first 10 chars as key)
+                    merchant_key = row['item'][:10].upper()
+                    conn.execute(
+                        "UPDATE expenses SET category = ? WHERE category = 'Other' AND UPPER(item) LIKE ?",
+                        (new_category, f"%{merchant_key}%")
+                    )
+                save_merchant_rule(row['item'], new_category)
+                # Store message in session_state so it renders outside
+                # the narrow column at full width after rerun
+                st.session_state.last_saved = f"✅ {row['item']} → {new_category}"
+                st.rerun()
+
+    # Render success message outside the columns loop — full width, clean layout
+    # Displays for 2 seconds then clears itself
+    if "last_saved" in st.session_state and st.session_state.last_saved:
+        st.success(st.session_state.last_saved)
+        time.sleep(3)
+        st.session_state.last_saved = None
+        st.rerun()
 
 # --- Clear Expenses Section ---
 # Wipes all rows from the database and resets conversation history.

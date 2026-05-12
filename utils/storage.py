@@ -91,3 +91,70 @@ def expense_exists(item, amount, date, max_allowed=1):
         )
         count = cursor.fetchone()[0]
         return count >= max_allowed
+    
+def initialize_merchant_rules():
+    """
+    Creates the merchant_rules table if it doesn't already exist.
+    This table stores manually confirmed merchant → category mappings
+    so the app learns from user corrections over time.
+
+    Table structure:
+        merchant  (str): Cleaned merchant name (e.g. 'SPOTIFY')
+        category  (str): User-confirmed category (e.g. 'Subscriptions')
+    """
+    with get_connection() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS merchant_rules (
+                merchant TEXT PRIMARY KEY,
+                category TEXT NOT NULL
+            )
+        """)
+
+def get_merchant_rule(merchant):
+    """
+    Looks up a merchant in the rules table.
+    Checks exact match first, then partial match for description variations.
+
+    Parameters:
+        merchant (str): Merchant name to look up
+
+    Returns:
+        str: Category if a rule exists, None if not found
+    """
+    initialize_merchant_rules()
+    with get_connection() as conn:
+        # First try exact match
+        cursor = conn.execute(
+            "SELECT category FROM merchant_rules WHERE merchant = ?",
+            (merchant.upper(),)
+        )
+        result = cursor.fetchone()
+        if result:
+            return result[0]
+
+        # Then try partial match — check if any saved rule is contained
+        # within the current merchant description
+        cursor = conn.execute("SELECT merchant, category FROM merchant_rules")
+        all_rules = cursor.fetchall()
+        for saved_merchant, category in all_rules:
+            if saved_merchant in merchant.upper():
+                return category
+
+        return None
+
+
+def save_merchant_rule(merchant, category):
+    """
+    Saves or updates a merchant → category mapping.
+    Uses INSERT OR REPLACE so updating an existing rule works cleanly.
+
+    Parameters:
+        merchant (str): Merchant name
+        category (str): Confirmed category to associate with this merchant
+    """
+    initialize_merchant_rules()
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO merchant_rules (merchant, category) VALUES (?, ?)",
+            (merchant.upper(), category)
+        )
