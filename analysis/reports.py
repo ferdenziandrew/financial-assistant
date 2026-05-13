@@ -179,3 +179,80 @@ def income_vs_expenses_by_month():
     # Merge both into one DataFrame — outer join keeps months that only have one side
     merged = pd.merge(income, expenses, on="month", how="outer").fillna(0)
     return merged.sort_values("month")
+
+def current_month_spending_by_category():
+    """
+    Returns total spending per category for the current month only.
+    Used to compare against budget goals.
+
+    Returns:
+        dict: {category: total_spent} for current month
+              Only includes debits (negative amounts), excludes transfers/income
+    """
+    df = load_data()
+    if df.empty:
+        return {}
+
+    df["amount"] = pd.to_numeric(df["amount"], errors="coerce")
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+
+    # Filter to current month and year only
+    now = pd.Timestamp.now()
+    df = df[
+        (df["date"].dt.month == now.month) &
+        (df["date"].dt.year == now.year)
+    ]
+
+    # Only debits, exclude transfers and income
+    df = df[df["amount"] < 0]
+    df = df[~df["category"].isin(["Transfer", "Income", "Transfers"])]
+
+    # Return positive amounts grouped by category
+    df["amount"] = df["amount"].abs()
+    result = df.groupby("category")["amount"].sum()
+    return result.to_dict()
+
+
+def get_budget_status(warning_threshold=0.8):
+    """
+    Compares current month spending against budget goals.
+    Returns status for each budgeted category.
+
+    Parameters:
+        warning_threshold (float): Fraction at which to warn. Default 0.8 (80%)
+
+    Returns:
+        list of dicts, each containing:
+            category    (str)  : Category name
+            spent       (float): Amount spent this month
+            limit       (float): Monthly budget limit
+            percent     (float): spent / limit as decimal
+            status      (str)  : 'over', 'warning', or 'ok'
+    """
+    from utils.storage import get_budget_goals
+    goals = get_budget_goals()
+    spending = current_month_spending_by_category()
+
+    status_list = []
+    for category, limit in goals.items():
+        spent = spending.get(category, 0.0)
+        percent = spent / limit if limit > 0 else 0
+
+        if percent >= 1.0:
+            status = "over"
+        elif percent >= warning_threshold:
+            status = "warning"
+        else:
+            status = "ok"
+
+        status_list.append({
+            "category": category,
+            "spent": spent,
+            "limit": limit,
+            "percent": percent,
+            "status": status
+        })
+
+    # Sort — over budget first, then warnings, then ok
+    order = {"over": 0, "warning": 1, "ok": 2}
+    return sorted(status_list, key=lambda x: order[x["status"]])

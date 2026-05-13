@@ -158,3 +158,67 @@ def save_merchant_rule(merchant, category):
             "INSERT OR REPLACE INTO merchant_rules (merchant, category) VALUES (?, ?)",
             (merchant.upper(), category)
         )
+
+def initialize_budget_goals():
+    """
+    Creates the budget_goals table if it doesn't already exist.
+    Stores monthly spending limits per category.
+
+    Table structure:
+        category      (str)  : Category name — primary key
+        monthly_limit (float): Maximum monthly spending allowed
+    """
+    with get_connection() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS budget_goals (
+                category TEXT PRIMARY KEY,
+                monthly_limit REAL NOT NULL
+            )
+        """)
+
+
+def save_budget_goal(category, monthly_limit):
+    """
+    Saves or updates a monthly budget limit for a category.
+    Uses INSERT OR REPLACE so updating an existing goal works cleanly.
+
+    Parameters:
+        category      (str)  : Category name
+        monthly_limit (float): Monthly spending limit in dollars
+    """
+    initialize_budget_goals()
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO budget_goals (category, monthly_limit) VALUES (?, ?)",
+            (category, monthly_limit)
+        )
+
+
+def get_budget_goals():
+    """
+    Returns all saved budget goals.
+
+    Returns:
+        dict: {category: monthly_limit} mapping
+              Empty dict if no goals set yet
+    """
+    initialize_budget_goals()
+    with get_connection() as conn:
+        cursor = conn.execute("SELECT category, monthly_limit FROM budget_goals")
+        rows = cursor.fetchall()
+        return {row[0]: row[1] for row in rows}
+
+
+def delete_budget_goal(category):
+    """
+    Removes a budget goal for a category.
+
+    Parameters:
+        category (str): Category name to remove
+    """
+    initialize_budget_goals()
+    with get_connection() as conn:
+        conn.execute(
+            "DELETE FROM budget_goals WHERE category = ?",
+            (category,)
+        )

@@ -6,12 +6,12 @@
 # is used to persist data across those reruns within a session.
 
 import streamlit as st
-from utils.storage import save_expense, get_connection, expense_exists, save_merchant_rule
+from utils.storage import save_expense, get_connection, expense_exists, save_merchant_rule, save_budget_goal, get_budget_goals, delete_budget_goal
 from utils.categorizer import categorize
 from utils.categorizer import CATEGORIES
 from utils.importer import import_pnc_csv
 from ai.chatbot import ask_ai
-from analysis.reports import total_spending, get_expenses
+from analysis.reports import total_spending, get_expenses, get_budget_status
 from analysis.charts import category_bar_chart, spending_trend_chart, income_vs_expenses_chart
 from plaid_link.transactions import import_plaid_transactions
 from pathlib import Path
@@ -74,6 +74,98 @@ if not expenses_data.empty:
             st.plotly_chart(inc_exp_chart, use_container_width=True)
 else:
     st.info("Import transactions to see spending charts.")
+
+# --- Budget Goals Section ---
+st.subheader("Budget Goals")
+
+budget_status = get_budget_status()
+goals = get_budget_goals()
+
+# --- Proactive Warnings — shown at top of section ---
+# Renders before anything else so alerts are immediately visible
+for item in budget_status:
+    if item["status"] == "over":
+        st.error(
+            f"🚨 **{item['category']}** — Over budget! "
+            f"Spent ${item['spent']:,.2f} of ${item['limit']:,.2f} limit "
+            f"({item['percent']*100:.0f}%)"
+        )
+    elif item["status"] == "warning":
+        st.warning(
+            f"⚠️ **{item['category']}** — Approaching limit. "
+            f"Spent ${item['spent']:,.2f} of ${item['limit']:,.2f} limit "
+            f"({item['percent']*100:.0f}%)"
+        )
+
+# --- Progress Bars ---
+if budget_status:
+    st.write("**This Month's Spending vs Budget**")
+    for item in budget_status:
+        # Color label based on status
+        if item["status"] == "over":
+            label = f"🚨 {item['category']} — ${item['spent']:,.2f} / ${item['limit']:,.2f}"
+        elif item["status"] == "warning":
+            label = f"⚠️ {item['category']} — ${item['spent']:,.2f} / ${item['limit']:,.2f}"
+        else:
+            label = f"✅ {item['category']} — ${item['spent']:,.2f} / ${item['limit']:,.2f}"
+
+        # Cap progress bar at 1.0 — Streamlit doesn't allow values over 1
+        st.write(label)
+        st.progress(min(item["percent"], 1.0))
+else:
+    st.info("No budget goals set yet. Add one below.")
+
+# --- Set / Update Budget Goals Form ---
+with st.expander("Manage Budget Goals"):
+    col1, col2, col3 = st.columns([2, 2, 1])
+
+    with col1:
+        # Only show categories that make sense to budget
+        # (exclude income/transfer type categories)
+        budget_categories = [c for c in CATEGORIES if c not in
+                           ["Income", "Transfer", "Transfers", "Other"]]
+        goal_category = st.selectbox("Category", budget_categories, key="goal_category")
+
+    with col2:
+        # Pre-fill with existing limit if one exists
+        existing_limit = goals.get(goal_category, 0.0)
+        goal_amount = st.number_input(
+            "Monthly Limit ($)",
+            min_value=0.0,
+            value=float(existing_limit),
+            key="goal_amount"
+        )
+
+    with col3:
+        st.write(" ")
+        if st.button("Save Goal"):
+            save_budget_goal(goal_category, goal_amount)
+            st.session_state.goal_saved = f"✅ {goal_category} budget set to ${goal_amount:,.2f}"
+            st.rerun()
+
+    # Delete existing goal
+    if goals:
+        st.divider()
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            delete_category = st.selectbox(
+                "Remove a goal",
+                list(goals.keys()),
+                key="delete_goal_category"
+            )
+        with col2:
+            st.write(" ")
+            if st.button("Remove"):
+                delete_budget_goal(delete_category)
+                st.session_state.goal_saved = f"🗑️ Removed {delete_category} budget goal"
+                st.rerun()
+
+    # Success message outside columns
+    if "goal_saved" in st.session_state and st.session_state.goal_saved:
+        st.success(st.session_state.goal_saved)
+        time.sleep(3)
+        st.session_state.goal_saved = None
+        st.rerun()
 
 # --- Expense Table Section ---
 st.subheader("Transaction History")
