@@ -130,6 +130,46 @@ def spending_by_category():
     return df.groupby("category")["amount"].sum().reset_index().sort_values(
     "amount", ascending=False).round(2)
 
+def spending_by_category_month(month_offset=0):
+    """
+    Returns total spending per category for a given month.
+    Excludes transfers and income.
+
+    Parameters:
+        month_offset (int): 0 = current month, -1 = last month, etc.
+
+    Returns:
+        pd.DataFrame: Columns — category, amount (positive, sorted highest first)
+        str: Display label for the selected month (e.g. "May 2026")
+    """
+    df = load_data()
+    if df.empty:
+        return pd.DataFrame(columns=["category", "amount"]), ""
+
+    df["amount"] = pd.to_numeric(df["amount"], errors="coerce")
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+
+    # Calculate target month by offsetting from today
+    # pd.DateOffset handles month boundary math automatically
+    # e.g. May - 1 = April, not April 30
+    target = pd.Timestamp.now() + pd.DateOffset(months=month_offset)
+
+    df = df[
+        (df["date"].dt.month == target.month) &
+        (df["date"].dt.year == target.year)
+    ]
+
+    df = df[df["amount"] < 0]
+    df = df[~df["category"].isin(["Transfer", "Income", "Transfers"])]
+    df["amount"] = df["amount"].abs()
+
+    result = df.groupby("category")["amount"].sum().reset_index().sort_values(
+        "amount", ascending=False
+    ).round(2)
+
+    # Return both the data and a readable month label
+    label = target.strftime("%B %Y")  # e.g. "May 2026"
+    return result, label
 
 def spending_over_time():
     """

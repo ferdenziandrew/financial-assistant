@@ -55,12 +55,53 @@ st.subheader("Spending Overview")
 expenses_data = get_expenses()
 
 if not expenses_data.empty:
-    # Row 1 — Category chart full width
-    cat_chart = category_bar_chart()
+    # --- Category Chart with Toggle and Month Navigation ---
+    chart_period = st.radio(
+        "View spending by category:",
+        ["This Month", "All Time"],
+        horizontal=True,
+        key="chart_period"
+    )
+
+    # Initialize month offset in session_state — 0 = current month
+    if "month_offset" not in st.session_state:
+        st.session_state.month_offset = 0
+
+    # Show month navigation arrows only in monthly mode
+    if chart_period == "This Month":
+        col_left, col_mid, col_right = st.columns([1, 4, 1])
+
+        with col_left:
+            if st.button("◀", key="prev_month"):
+                st.session_state.month_offset -= 1
+                st.rerun()
+
+        with col_right:
+            # Disable forward arrow if already on current month
+            if st.button("▶", key="next_month",
+                         disabled=st.session_state.month_offset >= 0):
+                st.session_state.month_offset += 1
+                st.rerun()
+
+        cat_chart, month_label = category_bar_chart(
+            monthly=True,
+            month_offset=st.session_state.month_offset
+        )
+
+        with col_mid:
+            st.markdown(f"<h4 style='text-align:center'>{month_label}</h4>",
+                       unsafe_allow_html=True)
+    else:
+        # Reset offset when switching to All Time
+        st.session_state.month_offset = 0
+        cat_chart, _ = category_bar_chart(monthly=False)
+
     if cat_chart:
         st.plotly_chart(cat_chart, use_container_width=True)
+    else:
+        st.info("No spending data for the selected period.")
 
-    # Row 2 — Trend and Income/Expenses side by side
+    # --- Trend and Income/Expenses side by side ---
     col1, col2 = st.columns(2)
 
     with col1:

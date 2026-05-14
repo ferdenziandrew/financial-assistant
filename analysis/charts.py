@@ -5,41 +5,53 @@
 
 import plotly.express as px
 import plotly.graph_objects as go
-from analysis.reports import spending_by_category, spending_over_time, income_vs_expenses_by_month
+from analysis.reports import (
+    spending_by_category,
+    spending_by_category_month,
+    spending_over_time,
+    income_vs_expenses_by_month
+)
 
-
-def category_bar_chart():
+def category_bar_chart(monthly=False, month_offset=0):
     """
     Horizontal bar chart showing total spending per category.
-    Largest categories appear at the top.
+
+    Parameters:
+        monthly      (bool): If True shows a specific month. False = all time.
+        month_offset (int) : 0 = current month, -1 = last month, etc.
 
     Returns:
-        plotly.graph_objects.Figure
+        tuple: (plotly.graph_objects.Figure, str label) or (None, "")
     """
-    df = spending_by_category()
+    if monthly:
+        df, label = spending_by_category_month(month_offset)
+        title = f"Spending by Category — {label}"
+    else:
+        df = spending_by_category()
+        title = "Spending by Category — All Time"
+        label = "All Time"
 
     if df.empty:
-        return None
+        return None, label
 
     fig = px.bar(
         df,
         x="amount",
         y="category",
-        orientation="h",         # horizontal bars
-        title="Spending by Category",
+        orientation="h",
+        title=title,
         labels={"amount": "Total Spent ($)", "category": "Category"},
-        color="amount",          # color bars by value — darker = higher spend
+        color="amount",
         color_continuous_scale="reds"
     )
 
-    # Clean up the layout
     fig.update_layout(
         showlegend=False,
-        coloraxis_showscale=False,  # hide the color scale bar
-        yaxis={"categoryorder": "total ascending"}  # highest bar at top
+        coloraxis_showscale=False,
+        yaxis={"categoryorder": "total ascending"}
     )
 
-    return fig
+    return fig, label
 
 
 def spending_trend_chart():
