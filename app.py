@@ -10,8 +10,8 @@ from utils.storage import save_expense, get_connection, expense_exists, save_mer
 from utils.categorizer import categorize
 from utils.categorizer import CATEGORIES
 from utils.importer import import_pnc_csv
-from ai.chatbot import ask_ai
-from analysis.reports import total_spending, get_expenses, get_budget_status
+from ai.chatbot import ask_ai, generate_proactive_insights
+from analysis.reports import total_spending, get_expenses, get_budget_status, current_month_spending_by_category
 from analysis.charts import category_bar_chart, spending_trend_chart, income_vs_expenses_chart
 from plaid_link.transactions import import_plaid_transactions
 from pathlib import Path
@@ -364,6 +364,31 @@ else:
         st.success(f"Synced — Imported: {imported} | Duplicates skipped: {duplicates} | Errors: {skipped}")
         time.sleep(3)  # wait 3 seconds so the message is readable
         st.rerun()
+
+# --- Proactive AI Insights ---
+# Generated once per session on page load — not on every rerun.
+# Uses session_state to avoid regenerating on every Streamlit interaction.
+if "proactive_insight" not in st.session_state:
+    with st.spinner("Analyzing your finances..."):
+        # Get budget status for the AI to evaluate
+        budget_status = get_budget_status()
+
+        # Get current month spending as readable text
+        monthly_spending = current_month_spending_by_category()
+        if monthly_spending:
+            spending_lines = [f"{cat}: ${amt:,.2f}" 
+                            for cat, amt in monthly_spending.items()]
+            spending_summary = "\n".join(spending_lines)
+        else:
+            spending_summary = "No spending recorded this month yet."
+
+        st.session_state.proactive_insight = generate_proactive_insights(
+            budget_status, spending_summary
+        )
+
+# Display the insight as an info banner above the chat
+if st.session_state.proactive_insight:
+    st.info(f"🤖 **Daily Insight:** {st.session_state.proactive_insight}")
 
 # --- AI Chat Section ---
 st.subheader("Ask Your Financial Assistant")

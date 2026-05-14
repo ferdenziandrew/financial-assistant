@@ -65,3 +65,48 @@ def ask_ai(question, conversation_history=[]):
     conversation_history.append({"role": "assistant", "content": answer})
 
     return answer, conversation_history
+
+def generate_proactive_insights(budget_status, spending_summary):
+    """
+    Generates automatic spending insights on page load without user prompting.
+    Called once per session to surface budget warnings and spending patterns.
+
+    Parameters:
+        budget_status    (list): Output from get_budget_status() — list of dicts
+        spending_summary (str) : Current month spending as readable text
+
+    Returns:
+        str: AI-generated insight message to display at top of chat
+    """
+    # Format budget status into readable text for the AI
+    budget_lines = []
+    for item in budget_status:
+        pct = item['percent'] * 100
+        budget_lines.append(
+            f"{item['category']}: spent ${item['spent']:,.2f} of "
+            f"${item['limit']:,.2f} limit ({pct:.0f}%) — {item['status'].upper()}"
+        )
+
+    budget_text = "\n".join(budget_lines) if budget_lines else "No budget goals set."
+
+    response = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=300,
+        system="""You are a personal finance assistant providing a brief 
+            proactive daily summary. Be conversational, helpful, and concise.
+            Lead with the most urgent items first.
+            Maximum 3-4 sentences. No bullet points.
+            Do not use markdown formatting, backticks, or code blocks.""",
+        messages=[{
+            "role": "user",
+            "content": f"""Here is my current budget status:
+{budget_text}
+
+Here is my spending this month:
+{spending_summary}
+
+Give me a brief proactive insight about my finances. Flag anything urgent first."""
+        }]
+    )
+
+    return response.content[0].text.strip()
