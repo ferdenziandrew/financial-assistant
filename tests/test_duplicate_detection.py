@@ -2,13 +2,11 @@
 
 import sqlite3
 from datetime import date
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
+from tests.conftest import navigate_to_tab
 
 TEST_ITEM = "Selenium Duplicate Test"
 TEST_AMOUNT = 7.77
@@ -27,6 +25,8 @@ def submit_expense(driver, wait):
     Returns:
         None: Submits the form and returns. Does not assert anything.
     """
+    navigate_to_tab(driver, "Import")
+
     name_field = wait.until(
         EC.presence_of_element_located((By.CSS_SELECTOR, "[aria-label='Expense Name']"))
     )
@@ -55,29 +55,28 @@ def test_duplicate_detection(driver):
     to confirm the duplicate was blocked at the data layer.
 
     Parameters:
-        None
+        driver (webdriver.Chrome): Browser session injected by the driver fixture.
 
     Returns:
         None: Passes if exactly 1 matching record exists after two submissions.
               Raises AssertionError if count is 0 (neither saved) or 2 (duplicate allowed).
     """
-    try:
-        driver.get("http://localhost:8501")
-        wait = WebDriverWait(driver, 10)
+    driver.get("http://localhost:8501")
+    wait = WebDriverWait(driver, 10)
 
-        # Submit the same expense twice
-        submit_expense(driver, wait)
-        submit_expense(driver, wait)
+    # Submit the same expense twice
+    submit_expense(driver, wait)
+    submit_expense(driver, wait)
 
-        # Query DB directly — UI assertion alone can't prove deduplication
-        conn = sqlite3.connect('expenses.db')
-        count = conn.execute(
-            "SELECT COUNT(*) FROM expenses WHERE item = ? AND amount = ? AND date = ?",
-            (TEST_ITEM, TEST_AMOUNT, TEST_DATE)
-        ).fetchone()[0]
-        conn.close()
+    # Query DB directly — UI assertion alone can't prove deduplication
+    import sys, os
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+    from utils.storage import DB_PATH
+    conn = sqlite3.connect(DB_PATH)
+    count = conn.execute(
+        "SELECT COUNT(*) FROM expenses WHERE item = ? AND amount = ? AND date = ?",
+        (TEST_ITEM, TEST_AMOUNT, TEST_DATE)
+    ).fetchone()[0]
+    conn.close()
 
-        assert count == 1, f"Expected 1 record but found {count} — duplicate detection may not be working."
-
-    except Exception as e:
-        raise e
+    assert count == 1, f"Expected 1 record but found {count} — duplicate detection may not be working."

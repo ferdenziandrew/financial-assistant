@@ -1,12 +1,18 @@
 # tests/test_transaction_filters.py
 
+import sys
+import os
+import time
+import sqlite3
+import pytest
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-import time
-import sqlite3
-import pytest
+from tests.conftest import navigate_to_tab
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from utils.storage import DB_PATH
 
 
 @pytest.mark.parametrize("category", ["Food", "Shopping", "Entertainment", "Transport"])
@@ -29,6 +35,7 @@ def test_category_filter(driver, category):
     driver.get("http://localhost:8501")
 
     wait = WebDriverWait(driver, 10)
+    navigate_to_tab(driver, "Transactions")
 
     # Wait for the category filter combobox to appear
     category_filter = wait.until(
@@ -44,18 +51,18 @@ def test_category_filter(driver, category):
     # Give Streamlit a moment to re-render the filtered table
     time.sleep(2)
 
-    # After filtering, confirm row count matches DB Food record count
+    # After filtering, confirm row count matches DB record count for that category
     table = driver.find_element(By.CSS_SELECTOR, "table[role='grid']")
     aria_rowcount = int(table.get_attribute("aria-rowcount"))
     # aria-rowcount includes the header row, subtract 1 for actual data rows
     visible_rows = aria_rowcount - 1
 
-     # Query DB for expected Food count
-    conn = sqlite3.connect('expenses.db')
+    # Query DB for expected count for this category
+    conn = sqlite3.connect(DB_PATH)
     expected = conn.execute(
-            "SELECT COUNT(*) FROM expenses WHERE category = ?",
-            (category,)
-        ).fetchone()[0]
+        "SELECT COUNT(*) FROM expenses WHERE category = ?",
+        (category,)
+    ).fetchone()[0]
     conn.close()
 
     assert visible_rows == expected, f"Expected {expected} {category} rows but table shows {visible_rows}"
